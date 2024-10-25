@@ -1,21 +1,21 @@
 {
-  "name": "scratch-ext",
-  "version": "1.0.0",
-  "description": "Scaffolding for Javascript/Typescript Scratch extensions",
+  "name": "cst12293d",
+  "version": "2.0.0",
+  "description": "Bring your sprites into the third dimension.",
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint ./src",
     "lint:type": "tsc --noEmit -p ./tsconfig.json",
     "fix": "eslint ./src --fix",
-    "start": "tsup src/withL10n.ts && http-server ./dist -p 8080 --cors",
+    "start": "tsup src/withL10n.ts && http-server ./dist -p 8000 --cors",
     "build": "tsup src/withL10n.ts",
-    "build:turbowarp": "tsup src/index.ts && (npx prettier --config turbowarp/.prettierrc --parser acorn < dist/index.global.js) > dist/index.global.formatted.js && rimraf dist/index.global.js",
+    "build:turbowarp": "tsup src/index.js && (npx prettier --config turbowarp/.prettierrc --parser acorn < dist/index.global.js) > dist/index.global.formatted.js && rimraf dist/index.global.js",
     "format": "prettier ./src -c -w",
     "lint:format": "prettier ./src -c"
   },
-  "author": "FurryR",
-  "license": "MIT",
+  "author": "CST1229",
+  "license": "MPL-2.0",
   "devDependencies": {
     "@turbowarp/types": "git+https://github.com/TurboWarp/types-tw.git#tw",
     "@typescript-eslint/eslint-plugin": "^7.4.0",
@@ -25,5 +25,8 @@
     "prettier": "^3.2.5",
     "tsup": "^8.0.2",
     "typescript": "^5.4.3"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
   }
 }

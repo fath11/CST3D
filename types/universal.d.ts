@@ -14,5 +14,5 @@ interface TranslateFn {
 }
 
 declare namespace Scratch {
-  const translate: TranslateFn
+  //const translate: TranslateFn
 }
