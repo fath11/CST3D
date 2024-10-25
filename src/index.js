@@ -1,5 +1,64 @@
 import * as THREE from 'three';
 
+/*
+MODIFIED BY @deniskincses
+	FIXED FOR PENGUINMOD (nem megy a "Hide/Show Vanilla Blocks")
+	to do:
+		add spotlight direction
+		add light rasterization
+		maybe even add 3d sprite (xyz) stretching 
+*/
+
+/*
+MODIFIED BY @fath11
+	to do:
+		make variable names, argument ids, and block ids not painful to read
+    merge lights with sprites?
+*/
+
+/* 
+	Lighting test from @foil12 
+  info
+  Added linear fog
+  Added lighting support (Point, Spot, Hemisphere)
+  Scene may be black if you didin't add a light yet
+  Lighting may be buggy
+*/
+
+/* global THREE */
+// @ts-nocheck
+
+// Special thanks to Drago NrxThulitech Cuven for finding lots of bugs
+
+/*
+  TODO:
+  - bugs
+  
+  - model support???
+    - "load (OBJ/MTL/GLTF) (text/data: URL) [] into model []"
+    - "set 3d mode to model []"
+    - collision support unlikely (if it did happen it would probably be very laggy)
+
+  - materials/textures
+    - "set material [0] texture to [current costume]"
+    - "set material [0] color to ()"?
+    - built-in shape materials would be in docs because docs will exist (they are essential)
+
+  - 3d stamping
+    - "3d stamp named []" block that copies the current 3d object
+    - "duplicate 3d stamp [] as []"
+    - "move 3d stamp [] to myself"
+    - "delete 3d stamp []"
+    - "erase all 3d stamps"
+  
+  - lighting
+    - could be in the set 3d mode block, as in "set 3d mode to (point/spotlight)"
+    - spotlights point in the direction the sprite is pointing
+    - light color/intensity blocks
+    - glow?
+    - world light blocks (direction/disable/flat/color/intensity)
+*/
+
 ;(function (Scratch) {
   'use strict'
 
@@ -13,7 +72,7 @@ import * as THREE from 'three';
   const SIDE_MODE = 'threed.sidemode'
   const TEX_FILTER = 'threed.texfilter'
   const Z_POS = 'threed.zpos'
-  var LIGHTS = {}
+  let LIGHTS = {}
 
   if (!Scratch.extensions.unsandboxed) {
     throw new Error('3D must be run unsandboxed')
