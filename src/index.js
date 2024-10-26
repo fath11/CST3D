@@ -1982,9 +1982,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
     newLight({ name, typ, color }) {
       if (LIGHTS[name]) {
-        console.log(LIGHTS)
         this.deleteLight({ name })
-        console.log(LIGHTS)
       }
 
       let l = null
