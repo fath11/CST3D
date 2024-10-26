@@ -187,7 +187,10 @@ MODIFIED BY @fath11
               }
             }
           },
-          '---',
+          {
+            blockType: Scratch.BlockType.LABEL,
+            text: 'Motion and Sensing'
+          },
           this.vanillaBlock(`
             <block type="motion_setx">
                 <value name="X">
@@ -352,7 +355,10 @@ MODIFIED BY @fath11
                 </value>
             </block>
           `),
-          '---',
+          {
+            blockType: Scratch.BlockType.LABEL,
+            text: 'Looks'
+          },
           {
             opcode: 'setTexFilter',
             blockType: Scratch.BlockType.COMMAND,
@@ -377,7 +383,36 @@ MODIFIED BY @fath11
               }
             }
           },
-          '---',
+          "---",
+          {
+            opcode: 'setCubeTexture',
+            blockType: Scratch.BlockType.COMMAND,
+            text: 'set side textures for right: [RIGHT] left: [LEFT] top: [TOP] bottom: [BOTTOM] front: [FRONT] back: [BACK]',
+            arguments: {
+              RIGHT: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+              LEFT: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+              TOP: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+              BOTTOM: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+              FRONT: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+              BACK: {
+                type: Scratch.ArgumentType.COSTUME
+              },
+            }
+          },
+          {
+            blockType: Scratch.BlockType.LABEL,
+            text: 'Camera'
+          },
           {
             opcode: 'setCam',
             blockType: Scratch.BlockType.COMMAND,
@@ -978,7 +1013,14 @@ If I ever decide to release this extension on the gallery, this will be replaced
           if (this[OBJECT]) {
             this[OBJECT].removeFromParent()
             this[OBJECT].material.dispose()
-            if (this[OBJECT].material.map) this[OBJECT].material.map.dispose()
+            if (Array.isArray(dr[OBJECT].material)) {
+              dr[OBJECT].material.forEach(material => {
+                material.map.dispose()
+              });
+            } else {
+              dr[OBJECT].material.dispose()
+              if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose()
+            }
             this[OBJECT].geometry.dispose()
             this[OBJECT] = null
             Drawable.threed.updateRenderer()
@@ -1189,9 +1231,17 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     updateDrawableSkin(drawable) {
       if (drawable[OBJECT] && drawable[OBJECT].material) {
-        drawable[OBJECT].material.map = this.getThreeTextureFromSkin(
-          drawable.skin
-        )
+        if (Array.isArray(drawable[OBJECT].material)) {
+          drawable[OBJECT].material.forEach(material => {
+            material.map = this.getThreeTextureFromSkin(
+              drawable.skin
+            )
+          });
+        } else {
+          drawable[OBJECT].material.map = this.getThreeTextureFromSkin(
+            drawable.skin
+          )
+        }
       }
     }
 
@@ -1473,8 +1523,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       if (obj?.material?.map) obj?.material?.map?.dispose()
       const texture = this.getThreeTextureFromSkin(dr.skin)
-      obj.material.map = texture
-      obj.material.alphaTest = 0.01
+      if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
+        dr[OBJECT].material.forEach(material => {
+          material.map = texture
+          material.alphaTest = 0.01
+        });
+      } else {
+        obj.material.map = texture
+        obj.material.alphaTest = 0.01
+      }
 
       this.updateMaterialForDrawable(drawableID)
 
@@ -1491,13 +1548,28 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       obj.material.side = dr[SIDE_MODE]
 
-      const texture = obj.material.map
-      texture.minFilter = dr[TEX_FILTER]
-      texture.magFilter = dr[TEX_FILTER]
-      if (texture.magFilter === THREE.LinearMipmapLinearFilter)
-        texture.magFilter = THREE.LinearFilter
+      let texture = null
+      if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
+        dr[OBJECT].material.forEach(material => {
+          texture = material.map
 
-      obj.material.transparent = true
+          texture.minFilter = dr[TEX_FILTER]
+          texture.magFilter = dr[TEX_FILTER]
+          if (texture.magFilter === THREE.LinearMipmapLinearFilter)
+            texture.magFilter = THREE.LinearFilter
+
+          material.transparent = true
+        });
+      } else {
+        texture = obj.material.map
+
+        texture.minFilter = dr[TEX_FILTER]
+        texture.magFilter = dr[TEX_FILTER]
+        if (texture.magFilter === THREE.LinearMipmapLinearFilter)
+          texture.magFilter = THREE.LinearFilter
+
+        obj.material.transparent = true
+      }
     }
 
     disable3DForDrawable(drawableID) {
@@ -1509,8 +1581,14 @@ If I ever decide to release this extension on the gallery, this will be replaced
       dr[Z_POS] = dr[OBJECT].position.z
 
       dr[OBJECT].removeFromParent()
-      dr[OBJECT].material.dispose()
-      if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose()
+      if (Array.isArray(dr[OBJECT].material)) {
+        dr[OBJECT].material.forEach(material => {
+          material.map.dispose()
+        });
+      } else {
+        dr[OBJECT].material.dispose()
+        if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose()
+      }
       dr[OBJECT].geometry.dispose()
       dr[OBJECT] = null
       this.updateRenderer()
@@ -1753,8 +1831,90 @@ If I ever decide to release this extension on the gallery, this will be replaced
       })
       if (!(SIDE in sides)) return
       dr[SIDE_MODE] = sides[SIDE]
+
+      if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
+        dr[OBJECT].material.forEach(material => {
+          material.side = sides[SIDE]
+        });
+        this.updateRenderer()
+        return;
+      }
+
       if (dr[OBJECT] && dr[OBJECT].material) {
         dr[OBJECT].material.side = sides[SIDE]
+        this.updateRenderer()
+        return;
+      }
+    }
+
+    setCubeTexture({ RIGHT, LEFT, TOP, BOTTOM, FRONT, BACK}, util) {
+      if (util.target.isStage) return
+      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+
+      this.init()
+
+      const loader = new THREE.TextureLoader();
+
+      const right = util.target.getCostumeIndexByName(RIGHT);
+      if (right === -1) return;
+      const rightURL = util.target.sprite.costumes[right].asset.encodeDataURI();
+      const rightMaterial = new THREE.MeshPhongMaterial({ map: loader.load(rightURL), transparent:true })
+      rightMaterial.alphaTest = 0.01
+
+      const left = util.target.getCostumeIndexByName(LEFT);
+      if (left === -1) return;
+      const leftURL = util.target.sprite.costumes[left].asset.encodeDataURI();
+      const leftMaterial = new THREE.MeshPhongMaterial({ map: loader.load(leftURL), transparent:true })
+      leftMaterial.alphaTest = 0.01
+
+      const top = util.target.getCostumeIndexByName(TOP);
+      if (top === -1) return;
+      const topURL = util.target.sprite.costumes[top].asset.encodeDataURI();
+      const topMaterial = new THREE.MeshPhongMaterial({ map: loader.load(topURL), transparent:true })
+      topMaterial.alphaTest = 0.01
+
+      const bottom = util.target.getCostumeIndexByName(BOTTOM);
+      if (bottom === -1) return;
+      const bottomURL = util.target.sprite.costumes[bottom].asset.encodeDataURI();
+      const bottomMaterial = new THREE.MeshPhongMaterial({ map: loader.load(bottomURL), transparent:true })
+      bottomMaterial.alphaTest = 0.01
+
+      const front = util.target.getCostumeIndexByName(FRONT);
+      if (front === -1) return;
+      const frontURL = util.target.sprite.costumes[front].asset.encodeDataURI();
+      const frontMaterial = new THREE.MeshPhongMaterial({ map: loader.load(frontURL), transparent:true })
+      frontMaterial.alphaTest = 0.01
+
+      const back = util.target.getCostumeIndexByName(BACK);
+      if (back === -1) return;
+      const backURL = util.target.sprite.costumes[back].asset.encodeDataURI();
+      const backMaterial = new THREE.MeshPhongMaterial({ map: loader.load(backURL), transparent:true })
+      backMaterial.alphaTest = 0.01
+
+      const object = dr[OBJECT];
+
+      if (object && object.material?.map) {
+
+        if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
+          dr[OBJECT].material.forEach(material => {
+            material.map.dispose()
+          });
+        } else {
+          object.material.map.dispose()
+        }
+
+        const cubeMaterials = [
+          rightMaterial, //right side
+          leftMaterial, //left side
+          topMaterial, //top side
+          bottomMaterial, //bottom side
+          frontMaterial, //front side
+          backMaterial, //back side
+        ];
+        object.material = cubeMaterials
+        
+        this.updateMaterialForDrawable(util.target.drawableID)
+        dr.updateScale(dr.scale)
         this.updateRenderer()
       }
     }
@@ -1771,6 +1931,21 @@ If I ever decide to release this extension on the gallery, this will be replaced
       })
       if (!(FILTER in filters)) return
       dr[TEX_FILTER] = filters[FILTER]
+
+      if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
+        dr[OBJECT].material.forEach(material => {
+          const cloned = material.map.clone()
+          material.map.dispose()
+          material.map = cloned
+          cloned.needsUpdate = true
+        });
+        
+        this.updateMaterialForDrawable(util.target.drawableID)
+        this.updateRenderer()
+
+        return;
+      }
+
       if (dr[OBJECT] && dr[OBJECT].material?.map) {
         // i think for some reason you need to create a new texture
         const cloned = dr[OBJECT].material.map.clone()
@@ -1779,6 +1954,8 @@ If I ever decide to release this extension on the gallery, this will be replaced
         cloned.needsUpdate = true
         this.updateMaterialForDrawable(util.target.drawableID)
         this.updateRenderer()
+
+        return;
       }
     }
 
@@ -2084,23 +2261,23 @@ If I ever decide to release this extension on the gallery, this will be replaced
           case 'angle':
             light.target.position.set(
               light.target.position.x,
-              -DEGREES,
-              DEGREES
+              light.target.position.y + -DEGREES,
+              light.target.position.z + DEGREES
             )
             break
           case 'x':
           case 'aim':
             light.target.position.set(
-              -DEGREES,
+              light.target.position.x + -DEGREES,
               light.target.position.y,
-              DEGREES
+              light.target.position.z + DEGREES
             )
             break
           case 'z':
           case 'roll':
             light.target.position.set(
-              -DEGREES,
-              DEGREES,
+              light.target.position.x + -DEGREES,
+              light.target.position.y + DEGREES,
               light.target.position.z
             )
             break

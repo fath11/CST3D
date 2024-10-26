@@ -5,6 +5,9 @@
 // License: MPL-2.0
 
 (() => {
+  // src/l10n/index.ts
+  var l10n_default = {};
+
   // node_modules/three/build/three.module.js
   var REVISION = "169";
   var CullFaceNone = 0;
@@ -19318,6 +19321,24 @@ void main() {
   var VectorKeyframeTrack = class extends KeyframeTrack {
   };
   VectorKeyframeTrack.prototype.ValueTypeName = "vector";
+  var Cache = {
+    enabled: false,
+    files: {},
+    add: function(key, file) {
+      if (this.enabled === false) return;
+      this.files[key] = file;
+    },
+    get: function(key) {
+      if (this.enabled === false) return;
+      return this.files[key];
+    },
+    remove: function(key) {
+      delete this.files[key];
+    },
+    clear: function() {
+      this.files = {};
+    }
+  };
   var LoadingManager = class {
     constructor(onLoad, onProgress, onError) {
       const scope = this;
@@ -19432,6 +19453,69 @@ void main() {
     }
   };
   Loader.DEFAULT_MATERIAL_NAME = "__DEFAULT";
+  var ImageLoader = class extends Loader {
+    constructor(manager) {
+      super(manager);
+    }
+    load(url, onLoad, onProgress, onError) {
+      if (this.path !== void 0) url = this.path + url;
+      url = this.manager.resolveURL(url);
+      const scope = this;
+      const cached = Cache.get(url);
+      if (cached !== void 0) {
+        scope.manager.itemStart(url);
+        setTimeout(function() {
+          if (onLoad) onLoad(cached);
+          scope.manager.itemEnd(url);
+        }, 0);
+        return cached;
+      }
+      const image = createElementNS("img");
+      function onImageLoad() {
+        removeEventListeners();
+        Cache.add(url, this);
+        if (onLoad) onLoad(this);
+        scope.manager.itemEnd(url);
+      }
+      function onImageError(event) {
+        removeEventListeners();
+        if (onError) onError(event);
+        scope.manager.itemError(url);
+        scope.manager.itemEnd(url);
+      }
+      function removeEventListeners() {
+        image.removeEventListener("load", onImageLoad, false);
+        image.removeEventListener("error", onImageError, false);
+      }
+      image.addEventListener("load", onImageLoad, false);
+      image.addEventListener("error", onImageError, false);
+      if (url.slice(0, 5) !== "data:") {
+        if (this.crossOrigin !== void 0) image.crossOrigin = this.crossOrigin;
+      }
+      scope.manager.itemStart(url);
+      image.src = url;
+      return image;
+    }
+  };
+  var TextureLoader = class extends Loader {
+    constructor(manager) {
+      super(manager);
+    }
+    load(url, onLoad, onProgress, onError) {
+      const texture = new Texture();
+      const loader = new ImageLoader(this.manager);
+      loader.setCrossOrigin(this.crossOrigin);
+      loader.setPath(this.path);
+      loader.load(url, function(image) {
+        texture.image = image;
+        texture.needsUpdate = true;
+        if (onLoad !== void 0) {
+          onLoad(texture);
+        }
+      }, onProgress, onError);
+      return texture;
+    }
+  };
   var Light = class extends Object3D {
     constructor(color, intensity = 1) {
       super();
@@ -20310,7 +20394,10 @@ void main() {
                 }
               }
             },
-            "---",
+            {
+              blockType: Scratch2.BlockType.LABEL,
+              text: "Motion and Sensing"
+            },
             this.vanillaBlock(`
             <block type="motion_setx">
                 <value name="X">
@@ -20475,7 +20562,10 @@ void main() {
                 </value>
             </block>
           `),
-            "---",
+            {
+              blockType: Scratch2.BlockType.LABEL,
+              text: "Looks"
+            },
             {
               opcode: "setTexFilter",
               blockType: Scratch2.BlockType.COMMAND,
@@ -20501,6 +20591,35 @@ void main() {
               }
             },
             "---",
+            {
+              opcode: "setCubeTexture",
+              blockType: Scratch2.BlockType.COMMAND,
+              text: "set side textures for right: [RIGHT] left: [LEFT] top: [TOP] bottom: [BOTTOM] front: [FRONT] back: [BACK]",
+              arguments: {
+                RIGHT: {
+                  type: Scratch2.ArgumentType.COSTUME
+                },
+                LEFT: {
+                  type: Scratch2.ArgumentType.COSTUME
+                },
+                TOP: {
+                  type: Scratch2.ArgumentType.COSTUME
+                },
+                BOTTOM: {
+                  type: Scratch2.ArgumentType.COSTUME
+                },
+                FRONT: {
+                  type: Scratch2.ArgumentType.COSTUME
+                },
+                BACK: {
+                  type: Scratch2.ArgumentType.COSTUME
+                }
+              }
+            },
+            {
+              blockType: Scratch2.BlockType.LABEL,
+              text: "Camera"
+            },
             {
               opcode: "setCam",
               blockType: Scratch2.BlockType.COMMAND,
@@ -20993,11 +21112,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
         this.updateScale();
       }
       uninit() {
-        for (const dr of Scratch2.renderer._allDrawables) {
-          if (!dr) continue;
-          this.disable3DForDrawable(dr.id);
-          delete dr[IN_3D];
-          delete dr[OBJECT];
+        for (const dr2 of Scratch2.renderer._allDrawables) {
+          if (!dr2) continue;
+          this.disable3DForDrawable(dr2.id);
+          delete dr2[IN_3D];
+          delete dr2[OBJECT];
         }
         if (this.scene) this.scene.clear();
         this.scene = void 0;
@@ -21078,7 +21197,14 @@ If I ever decide to release this extension on the gallery, this will be replaced
             if (this[OBJECT]) {
               this[OBJECT].removeFromParent();
               this[OBJECT].material.dispose();
-              if (this[OBJECT].material.map) this[OBJECT].material.map.dispose();
+              if (Array.isArray(dr[OBJECT].material)) {
+                dr[OBJECT].material.forEach((material) => {
+                  material.map.dispose();
+                });
+              } else {
+                dr[OBJECT].material.dispose();
+                if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose();
+              }
               this[OBJECT].geometry.dispose();
               this[OBJECT] = null;
               Drawable.threed.updateRenderer();
@@ -21103,14 +21229,14 @@ If I ever decide to release this extension on the gallery, this will be replaced
             return og();
           },
           isTouchingDrawables(og, drawableID, candidateIDs = this._drawList) {
-            const dr = this._allDrawables[drawableID];
-            if (dr[IN_3D]) {
+            const dr2 = this._allDrawables[drawableID];
+            if (dr2[IN_3D]) {
               const candidates = candidateIDs.filter(
                 (id) => this._allDrawables[id][IN_3D]
               );
               for (const candidate of candidates) {
                 if (Drawable.threed.touching3D(
-                  dr[OBJECT],
+                  dr2[OBJECT],
                   this._allDrawables[candidate][OBJECT]
                 ))
                   return true;
@@ -21123,11 +21249,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
             );
           },
           penStamp(og, penSkinID, stampID) {
-            const dr = this._allDrawables[stampID];
-            if (!dr) return;
-            if (dr[IN_3D]) {
+            const dr2 = this._allDrawables[stampID];
+            if (!dr2) return;
+            if (dr2[IN_3D]) {
               const threed = Drawable.threed;
-              threed.renderer.render(dr[OBJECT], threed.camera);
+              threed.renderer.render(dr2[OBJECT], threed.camera);
               this._allSkins[threed.threeSkinId].setContent(
                 threed.renderer.domElement
               );
@@ -21157,7 +21283,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             if (bounds.left === -Infinity || bounds.bottom === -Infinity) {
               return false;
             }
-            const candidates = (candidateIDs || this._drawList).map((id) => this._allDrawables[id]).filter((dr) => dr[IN_3D]);
+            const candidates = (candidateIDs || this._drawList).map((id) => this._allDrawables[id]).filter((dr2) => dr2[IN_3D]);
             if (candidates.length <= 0) return -1;
             const scratchCenterX = (bounds.left + bounds.right) / this._gl.canvas.clientWidth;
             const scratchCenterY = (bounds.top + bounds.bottom) / this._gl.canvas.clientHeight;
@@ -21248,9 +21374,17 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       updateDrawableSkin(drawable) {
         if (drawable[OBJECT] && drawable[OBJECT].material) {
-          drawable[OBJECT].material.map = this.getThreeTextureFromSkin(
-            drawable.skin
-          );
+          if (Array.isArray(drawable[OBJECT].material)) {
+            drawable[OBJECT].material.forEach((material) => {
+              material.map = this.getThreeTextureFromSkin(
+                drawable.skin
+              );
+            });
+          } else {
+            drawable[OBJECT].material.map = this.getThreeTextureFromSkin(
+              drawable.skin
+            );
+          }
         }
       }
       /// GENERAL UTILS ///
@@ -21391,33 +21525,33 @@ If I ever decide to release this extension on the gallery, this will be replaced
         }
       }
       enable3DForDrawable(drawableID, type = "flat") {
-        const dr = Scratch2.renderer._allDrawables[drawableID];
-        if (dr[IN_3D]) return;
-        dr[IN_3D] = true;
+        const dr2 = Scratch2.renderer._allDrawables[drawableID];
+        if (dr2[IN_3D]) return;
+        dr2[IN_3D] = true;
         let obj;
         if (type === "sprite") {
           obj = new Sprite();
         } else {
           obj = new Mesh();
         }
-        dr[OBJECT] = obj;
+        dr2[OBJECT] = obj;
         this.updateMeshForDrawable(drawableID, type);
-        if (!("_yaw" in dr)) dr._yaw = 0;
-        if (!("_pitch" in dr)) dr._pitch = 0;
-        if (!("_roll" in dr)) dr._roll = 0;
-        if (!(Z_POS in dr)) dr[Z_POS] = 0;
+        if (!("_yaw" in dr2)) dr2._yaw = 0;
+        if (!("_pitch" in dr2)) dr2._pitch = 0;
+        if (!("_roll" in dr2)) dr2._roll = 0;
+        if (!(Z_POS in dr2)) dr2[Z_POS] = 0;
         this.scene.add(obj);
         this.updateRenderer();
       }
       updateMeshForDrawable(drawableID, type) {
-        const dr = Scratch2.renderer._allDrawables[drawableID];
-        if (!dr[IN_3D]) return;
-        const obj = dr[OBJECT];
+        const dr2 = Scratch2.renderer._allDrawables[drawableID];
+        if (!dr2[IN_3D]) return;
+        const obj = dr2[OBJECT];
         if (obj.isSprite) {
           if (obj.material) obj.material.dispose();
           obj.material = new SpriteMaterial();
           try {
-            const size = this.getSizeFromSkin(dr.skin);
+            const size = this.getSizeFromSkin(dr2.skin);
             obj._sizeX = size[0];
             obj._sizeY = size[1];
             obj._sizeZ = size[0];
@@ -21432,15 +21566,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
           switch (type) {
             case "flat":
               obj.geometry = new PlaneGeometry(
-                dr.skin.size[0],
-                dr.skin.size[1]
+                dr2.skin.size[0],
+                dr2.skin.size[1]
               );
               break;
             case "flat triangle":
               {
                 const geometry = new BufferGeometry();
-                const w = dr.skin.size[0] / 2;
-                const h = dr.skin.size[1] / 2;
+                const w = dr2.skin.size[0] / 2;
+                const h = dr2.skin.size[1] / 2;
                 const vertices = new Float32Array([
                   -w,
                   -h,
@@ -21464,21 +21598,21 @@ If I ever decide to release this extension on the gallery, this will be replaced
               break;
             case "cube":
               obj.geometry = new BoxGeometry(
-                dr.skin.size[0],
-                dr.skin.size[1],
-                dr.skin.size[0]
+                dr2.skin.size[0],
+                dr2.skin.size[1],
+                dr2.skin.size[0]
               );
               break;
             case "sphere":
               obj.geometry = new SphereGeometry(
-                Math.max(dr.skin.size[0], dr.skin.size[1]) / 2,
+                Math.max(dr2.skin.size[0], dr2.skin.size[1]) / 2,
                 24,
                 12
               );
               break;
             case "low-poly sphere":
               obj.geometry = new SphereGeometry(
-                Math.max(dr.skin.size[0], dr.skin.size[1]) / 2,
+                Math.max(dr2.skin.size[0], dr2.skin.size[1]) / 2,
                 8,
                 6
               );
@@ -21489,36 +21623,61 @@ If I ever decide to release this extension on the gallery, this will be replaced
           obj._sizeZ = 1;
         }
         if (obj?.material?.map) obj?.material?.map?.dispose();
-        const texture = this.getThreeTextureFromSkin(dr.skin);
-        obj.material.map = texture;
-        obj.material.alphaTest = 0.01;
+        const texture = this.getThreeTextureFromSkin(dr2.skin);
+        if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
+          dr2[OBJECT].material.forEach((material) => {
+            material.map = texture;
+            material.alphaTest = 0.01;
+          });
+        } else {
+          obj.material.map = texture;
+          obj.material.alphaTest = 0.01;
+        }
         this.updateMaterialForDrawable(drawableID);
-        dr.updateScale(dr.scale);
+        dr2.updateScale(dr2.scale);
       }
       updateMaterialForDrawable(drawableID) {
-        const dr = Scratch2.renderer._allDrawables[drawableID];
-        if (!dr[IN_3D]) return;
-        const obj = dr[OBJECT];
-        if (!(SIDE_MODE in dr)) dr[SIDE_MODE] = DoubleSide;
-        if (!(TEX_FILTER in dr)) dr[TEX_FILTER] = LinearMipmapLinearFilter;
-        obj.material.side = dr[SIDE_MODE];
-        const texture = obj.material.map;
-        texture.minFilter = dr[TEX_FILTER];
-        texture.magFilter = dr[TEX_FILTER];
-        if (texture.magFilter === LinearMipmapLinearFilter)
-          texture.magFilter = LinearFilter;
-        obj.material.transparent = true;
+        const dr2 = Scratch2.renderer._allDrawables[drawableID];
+        if (!dr2[IN_3D]) return;
+        const obj = dr2[OBJECT];
+        if (!(SIDE_MODE in dr2)) dr2[SIDE_MODE] = DoubleSide;
+        if (!(TEX_FILTER in dr2)) dr2[TEX_FILTER] = LinearMipmapLinearFilter;
+        obj.material.side = dr2[SIDE_MODE];
+        let texture = null;
+        if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
+          dr2[OBJECT].material.forEach((material) => {
+            texture = material.map;
+            texture.minFilter = dr2[TEX_FILTER];
+            texture.magFilter = dr2[TEX_FILTER];
+            if (texture.magFilter === LinearMipmapLinearFilter)
+              texture.magFilter = LinearFilter;
+            material.transparent = true;
+          });
+        } else {
+          texture = obj.material.map;
+          texture.minFilter = dr2[TEX_FILTER];
+          texture.magFilter = dr2[TEX_FILTER];
+          if (texture.magFilter === LinearMipmapLinearFilter)
+            texture.magFilter = LinearFilter;
+          obj.material.transparent = true;
+        }
       }
       disable3DForDrawable(drawableID) {
-        const dr = Scratch2.renderer._allDrawables[drawableID];
-        if (!dr[IN_3D]) return;
-        dr[IN_3D] = false;
-        dr[Z_POS] = dr[OBJECT].position.z;
-        dr[OBJECT].removeFromParent();
-        dr[OBJECT].material.dispose();
-        if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose();
-        dr[OBJECT].geometry.dispose();
-        dr[OBJECT] = null;
+        const dr2 = Scratch2.renderer._allDrawables[drawableID];
+        if (!dr2[IN_3D]) return;
+        dr2[IN_3D] = false;
+        dr2[Z_POS] = dr2[OBJECT].position.z;
+        dr2[OBJECT].removeFromParent();
+        if (Array.isArray(dr2[OBJECT].material)) {
+          dr2[OBJECT].material.forEach((material) => {
+            material.map.dispose();
+          });
+        } else {
+          dr2[OBJECT].material.dispose();
+          if (dr2[OBJECT].material.map) dr2[OBJECT].material.map.dispose();
+        }
+        dr2[OBJECT].geometry.dispose();
+        dr2[OBJECT] = null;
         this.updateRenderer();
       }
       /// BLOCKS ///
@@ -21545,36 +21704,36 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       refreshThreeDrawable(target) {
         const { direction, scale } = target._getRenderedDirectionAndScale();
-        const dr = target.renderer._allDrawables[target.drawableID];
-        dr.updatePosition([target.x, target.y]);
-        dr.updateDirection(direction);
-        dr.updateScale(scale);
-        dr.updateVisible(target.visible);
-        if (dr[OBJECT]) {
-          dr[OBJECT].position.z = dr[Z_POS];
+        const dr2 = target.renderer._allDrawables[target.drawableID];
+        dr2.updatePosition([target.x, target.y]);
+        dr2.updateDirection(direction);
+        dr2.updateScale(scale);
+        dr2.updateVisible(target.visible);
+        if (dr2[OBJECT]) {
+          dr2[OBJECT].position.z = dr2[Z_POS];
         }
         this.updateSpriteAngle({ target });
       }
       setZ({ Z }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return;
-        dr[OBJECT].position.z = Scratch2.Cast.toNumber(Z);
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return;
+        dr2[OBJECT].position.z = Scratch2.Cast.toNumber(Z);
         this.updateRenderer();
       }
       changeZ({ Z }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return;
         const z = Scratch2.Cast.toNumber(Z);
-        dr[OBJECT].position.z += z;
+        dr2[OBJECT].position.z += z;
         this.updateRenderer();
       }
       getZ(args, util) {
         if (util.target.isStage) return 0;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[OBJECT]) return 0;
-        return dr[OBJECT].position.z;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[OBJECT]) return 0;
+        return dr2[OBJECT].position.z;
       }
       mod(n, modulus) {
         let result = n % modulus;
@@ -21587,28 +21746,28 @@ If I ever decide to release this extension on the gallery, this will be replaced
         return min + this.mod(offset, range);
       }
       updateSpriteAngle(util) {
-        let dr;
+        let dr2;
         if (util?.target) {
           if (util.target.isStage) return;
-          dr = Scratch2.renderer._allDrawables[util.target.drawableID];
+          dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
         } else {
-          dr = util;
+          dr2 = util;
         }
-        if (!dr[IN_3D]) return;
-        const obj = dr[OBJECT];
+        if (!dr2[IN_3D]) return;
+        const obj = dr2[OBJECT];
         obj.rotation.x = 0;
         obj.rotation.y = 0;
         obj.rotation.z = 0;
         const WRAP_MIN = MathUtils.degToRad(-180);
         const WRAP_MAX = MathUtils.degToRad(180);
-        dr._yaw = this.wrapClamp(dr._yaw, WRAP_MIN, WRAP_MAX);
-        dr._pitch = this.wrapClamp(dr._pitch, WRAP_MIN, WRAP_MAX);
-        dr._roll = this.wrapClamp(dr._roll, WRAP_MIN, WRAP_MAX);
-        obj.rotation.y = dr._yaw;
-        obj.rotateOnAxis(new Vector3(1, 0, 0), dr._pitch);
+        dr2._yaw = this.wrapClamp(dr2._yaw, WRAP_MIN, WRAP_MAX);
+        dr2._pitch = this.wrapClamp(dr2._pitch, WRAP_MIN, WRAP_MAX);
+        dr2._roll = this.wrapClamp(dr2._roll, WRAP_MIN, WRAP_MAX);
+        obj.rotation.y = dr2._yaw;
+        obj.rotateOnAxis(new Vector3(1, 0, 0), dr2._pitch);
         obj.rotateOnAxis(
           new Vector3(0, 0, 1),
-          MathUtils.degToRad(90) - dr._roll
+          MathUtils.degToRad(90) - dr2._roll
         );
       }
       set3DPos({ X, Y, Z }, util) {
@@ -21627,27 +21786,27 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       moveSteps({ STEPS }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return;
-        const add = new Vector3(0, 0, 1).applyQuaternion(dr[OBJECT].quaternion).multiplyScalar(-Scratch2.Cast.toNumber(STEPS));
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return;
+        const add = new Vector3(0, 0, 1).applyQuaternion(dr2[OBJECT].quaternion).multiplyScalar(-Scratch2.Cast.toNumber(STEPS));
         util.target.setXY(util.target.x + add.x, util.target.y + add.y);
         this.changeZ({ Z: add.z }, util);
         this.updateRenderer();
       }
       rotate3D({ DIRECTION, DEGREES }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return;
         if (!isFinite(DEGREES)) return;
         DEGREES = Scratch2.Cast.toNumber(DEGREES) * (DIRECTION === "left" || DIRECTION === "down" || DIRECTION === "ccw" ? -1 : 1);
         switch (DIRECTION) {
           case "left":
           case "right":
-            dr._yaw -= MathUtils.degToRad(DEGREES);
+            dr2._yaw -= MathUtils.degToRad(DEGREES);
             break;
           case "up":
           case "down":
-            dr._pitch += MathUtils.degToRad(DEGREES);
+            dr2._pitch += MathUtils.degToRad(DEGREES);
             break;
           case "cw":
           case "ccw":
@@ -21659,18 +21818,18 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       set3DDir({ DIRECTION, DEGREES }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return;
         DEGREES = Scratch2.Cast.toNumber(DEGREES);
         if (!isFinite(DEGREES)) return;
         switch (DIRECTION) {
           case "y":
           case "angle":
-            dr._yaw = -MathUtils.degToRad(DEGREES);
+            dr2._yaw = -MathUtils.degToRad(DEGREES);
             break;
           case "x":
           case "aim":
-            dr._pitch = MathUtils.degToRad(DEGREES);
+            dr2._pitch = MathUtils.degToRad(DEGREES);
             break;
           case "z":
           case "roll":
@@ -21682,25 +21841,25 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       direction3D({ DIRECTION }, util) {
         if (util.target.isStage) return 0;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
-        if (!dr[IN_3D]) return 0;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        if (!dr2[IN_3D]) return 0;
         switch (DIRECTION) {
           case "y":
           case "angle":
-            return -MathUtils.radToDeg(dr._yaw);
+            return -MathUtils.radToDeg(dr2._yaw);
           case "x":
           case "aim":
-            return MathUtils.radToDeg(dr._pitch);
+            return MathUtils.radToDeg(dr2._pitch);
           case "z":
           case "roll":
-            return MathUtils.radToDeg(dr._roll) - 90;
+            return MathUtils.radToDeg(dr2._roll) - 90;
           default:
             return 0;
         }
       }
       setSideMode({ SIDE }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
         this.init();
         const sides = Object.assign(/* @__PURE__ */ Object.create(null), {
           front: FrontSide,
@@ -21708,29 +21867,114 @@ If I ever decide to release this extension on the gallery, this will be replaced
           both: DoubleSide
         });
         if (!(SIDE in sides)) return;
-        dr[SIDE_MODE] = sides[SIDE];
-        if (dr[OBJECT] && dr[OBJECT].material) {
-          dr[OBJECT].material.side = sides[SIDE];
+        dr2[SIDE_MODE] = sides[SIDE];
+        if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
+          dr2[OBJECT].material.forEach((material) => {
+            material.side = sides[SIDE];
+          });
+          this.updateRenderer();
+          return;
+        }
+        if (dr2[OBJECT] && dr2[OBJECT].material) {
+          dr2[OBJECT].material.side = sides[SIDE];
+          this.updateRenderer();
+          return;
+        }
+      }
+      setCubeTexture({ RIGHT, LEFT, TOP, BOTTOM, FRONT, BACK }, util) {
+        if (util.target.isStage) return;
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
+        this.init();
+        const loader = new TextureLoader();
+        const right = util.target.getCostumeIndexByName(RIGHT);
+        if (right === -1) return;
+        const rightURL = util.target.sprite.costumes[right].asset.encodeDataURI();
+        const rightMaterial = new MeshPhongMaterial({ map: loader.load(rightURL), transparent: true });
+        rightMaterial.alphaTest = 0.01;
+        const left = util.target.getCostumeIndexByName(LEFT);
+        if (left === -1) return;
+        const leftURL = util.target.sprite.costumes[left].asset.encodeDataURI();
+        const leftMaterial = new MeshPhongMaterial({ map: loader.load(leftURL), transparent: true });
+        leftMaterial.alphaTest = 0.01;
+        const top = util.target.getCostumeIndexByName(TOP);
+        if (top === -1) return;
+        const topURL = util.target.sprite.costumes[top].asset.encodeDataURI();
+        const topMaterial = new MeshPhongMaterial({ map: loader.load(topURL), transparent: true });
+        topMaterial.alphaTest = 0.01;
+        const bottom = util.target.getCostumeIndexByName(BOTTOM);
+        if (bottom === -1) return;
+        const bottomURL = util.target.sprite.costumes[bottom].asset.encodeDataURI();
+        const bottomMaterial = new MeshPhongMaterial({ map: loader.load(bottomURL), transparent: true });
+        bottomMaterial.alphaTest = 0.01;
+        const front = util.target.getCostumeIndexByName(FRONT);
+        if (front === -1) return;
+        const frontURL = util.target.sprite.costumes[front].asset.encodeDataURI();
+        const frontMaterial = new MeshPhongMaterial({ map: loader.load(frontURL), transparent: true });
+        frontMaterial.alphaTest = 0.01;
+        const back = util.target.getCostumeIndexByName(BACK);
+        if (back === -1) return;
+        const backURL = util.target.sprite.costumes[back].asset.encodeDataURI();
+        const backMaterial = new MeshPhongMaterial({ map: loader.load(backURL), transparent: true });
+        backMaterial.alphaTest = 0.01;
+        const object = dr2[OBJECT];
+        if (object && object.material?.map) {
+          if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
+            dr2[OBJECT].material.forEach((material) => {
+              material.map.dispose();
+            });
+          } else {
+            object.material.map.dispose();
+          }
+          const cubeMaterials = [
+            rightMaterial,
+            //right side
+            leftMaterial,
+            //left side
+            topMaterial,
+            //top side
+            bottomMaterial,
+            //bottom side
+            frontMaterial,
+            //front side
+            backMaterial
+            //back side
+          ];
+          object.material = cubeMaterials;
+          this.updateMaterialForDrawable(util.target.drawableID);
+          dr2.updateScale(dr2.scale);
+          this.updateRenderer();
           this.updateRenderer();
         }
       }
       setTexFilter({ FILTER }, util) {
         if (util.target.isStage) return;
-        const dr = Scratch2.renderer._allDrawables[util.target.drawableID];
+        const dr2 = Scratch2.renderer._allDrawables[util.target.drawableID];
         this.init();
         const filters = Object.assign(/* @__PURE__ */ Object.create(null), {
           nearest: NearestFilter,
           linear: LinearMipmapLinearFilter
         });
         if (!(FILTER in filters)) return;
-        dr[TEX_FILTER] = filters[FILTER];
-        if (dr[OBJECT] && dr[OBJECT].material?.map) {
-          const cloned = dr[OBJECT].material.map.clone();
-          dr[OBJECT].material.map.dispose();
-          dr[OBJECT].material.map = cloned;
+        dr2[TEX_FILTER] = filters[FILTER];
+        if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
+          dr2[OBJECT].material.forEach((material) => {
+            const cloned = material.map.clone();
+            material.map.dispose();
+            material.map = cloned;
+            cloned.needsUpdate = true;
+          });
+          this.updateMaterialForDrawable(util.target.drawableID);
+          this.updateRenderer();
+          return;
+        }
+        if (dr2[OBJECT] && dr2[OBJECT].material?.map) {
+          const cloned = dr2[OBJECT].material.map.clone();
+          dr2[OBJECT].material.map.dispose();
+          dr2[OBJECT].material.map = cloned;
           cloned.needsUpdate = true;
           this.updateMaterialForDrawable(util.target.drawableID);
           this.updateRenderer();
+          return;
         }
       }
       preUpdateCameraAngle() {
@@ -21906,9 +22150,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
       newLight({ name, typ, color }) {
         if (LIGHTS[name]) {
-          console.log(LIGHTS);
           this.deleteLight({ name });
-          console.log(LIGHTS);
         }
         let l = null;
         let col = this.hexToNumber(color);
@@ -21997,23 +22239,23 @@ If I ever decide to release this extension on the gallery, this will be replaced
             case "angle":
               light.target.position.set(
                 light.target.position.x,
-                -DEGREES,
-                DEGREES
+                light.target.position.y + -DEGREES,
+                light.target.position.z + DEGREES
               );
               break;
             case "x":
             case "aim":
               light.target.position.set(
-                -DEGREES,
+                light.target.position.x + -DEGREES,
                 light.target.position.y,
-                DEGREES
+                light.target.position.z + DEGREES
               );
               break;
             case "z":
             case "roll":
               light.target.position.set(
-                -DEGREES,
-                DEGREES,
+                light.target.position.x + -DEGREES,
+                light.target.position.y + DEGREES,
                 light.target.position.z
               );
               break;
@@ -22059,6 +22301,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
     }
     Scratch2.extensions.register(new ThreeD(Scratch2.runtime));
+  })(Scratch);
+
+  // src/withL10n.ts
+  (function(Scratch2) {
+    Scratch2.translate.setup(l10n_default);
   })(Scratch);
 })();
 /*! Bundled license information:
