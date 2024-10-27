@@ -5,9 +5,6 @@
 // License: MPL-2.0
 
 (() => {
-  // src/l10n/index.ts
-  var l10n_default = {};
-
   // node_modules/three/build/three.module.js
   var REVISION = "148";
   var CullFaceNone = 0;
@@ -20915,11 +20912,6 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
     }
     Scratch2.extensions.register(new ThreeD(Scratch2.runtime));
-  })(Scratch);
-
-  // src/withL10n.ts
-  (function(Scratch2) {
-    Scratch2.translate.setup(l10n_default);
   })(Scratch);
 })();
 /*! Bundled license information:
