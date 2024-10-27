@@ -1893,7 +1893,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       const object = dr[OBJECT];
 
-      if (object && object instanceof THREE.BoxGeometry) {
+      if (object && object.geometry instanceof THREE.BoxGeometry) {
         if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
           dr[OBJECT].material.forEach(material => {
             material.map.dispose()

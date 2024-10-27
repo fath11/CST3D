@@ -20529,7 +20529,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
         const backMaterial = new MeshPhongMaterial({ map: loader.load(backURL), transparent: true });
         backMaterial.alphaTest = 0.01;
         const object = dr2[OBJECT];
-        if (object) {
+        if (object && object.geometry instanceof BoxGeometry) {
           if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
             dr2[OBJECT].material.forEach((material) => {
               material.map.dispose();
