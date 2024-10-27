@@ -20253,10 +20253,10 @@ If I ever decide to release this extension on the gallery, this will be replaced
         const obj = dr2[OBJECT];
         if (!(SIDE_MODE in dr2)) dr2[SIDE_MODE] = DoubleSide;
         if (!(TEX_FILTER in dr2)) dr2[TEX_FILTER] = LinearMipmapLinearFilter;
-        obj.material.side = dr2[SIDE_MODE];
         let texture = null;
         if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
           dr2[OBJECT].material.forEach((material) => {
+            material.side = dr2[SIDE_MODE];
             texture = material.map;
             texture.minFilter = dr2[TEX_FILTER];
             texture.magFilter = dr2[TEX_FILTER];
@@ -20265,6 +20265,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             material.transparent = true;
           });
         } else {
+          obj.material.side = dr2[SIDE_MODE];
           texture = obj.material.map;
           texture.minFilter = dr2[TEX_FILTER];
           texture.magFilter = dr2[TEX_FILTER];
@@ -20528,13 +20529,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
         const backMaterial = new MeshPhongMaterial({ map: loader.load(backURL), transparent: true });
         backMaterial.alphaTest = 0.01;
         const object = dr2[OBJECT];
-        if (object && object.material?.map) {
+        if (object) {
           if (dr2[OBJECT] && Array.isArray(dr2[OBJECT].material)) {
             dr2[OBJECT].material.forEach((material) => {
               material.map.dispose();
+              material.needsUpdate = true;
             });
           } else {
             object.material.map.dispose();
+            object.material.needsUpdate = true;
           }
           const cubeMaterials = [
             rightMaterial,
@@ -20551,10 +20554,10 @@ If I ever decide to release this extension on the gallery, this will be replaced
             //back side
           ];
           object.material = cubeMaterials;
+          object.material.needsUpdate = true;
           this.updateMaterialForDrawable(util.target.drawableID);
           dr2.updateScale(dr2.scale);
           this.updateRenderer();
-          this.updateDrawableSkin(dr2);
         }
       }
       setTexFilter({ FILTER }, util) {

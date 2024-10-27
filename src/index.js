@@ -1546,11 +1546,10 @@ If I ever decide to release this extension on the gallery, this will be replaced
       if (!(SIDE_MODE in dr)) dr[SIDE_MODE] = THREE.DoubleSide
       if (!(TEX_FILTER in dr)) dr[TEX_FILTER] = THREE.LinearMipmapLinearFilter
 
-      obj.material.side = dr[SIDE_MODE]
-
       let texture = null
       if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
         dr[OBJECT].material.forEach(material => {
+          material.side = dr[SIDE_MODE]
           texture = material.map
 
           texture.minFilter = dr[TEX_FILTER]
@@ -1561,6 +1560,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           material.transparent = true
         });
       } else {
+        obj.material.side = dr[SIDE_MODE]
         texture = obj.material.map
 
         texture.minFilter = dr[TEX_FILTER]
@@ -1893,14 +1893,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       const object = dr[OBJECT];
 
-      if (object && object.material?.map) {
-
+      if (object) {
         if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
           dr[OBJECT].material.forEach(material => {
             material.map.dispose()
+            material.needsUpdate = true
           });
         } else {
           object.material.map.dispose()
+          object.material.needsUpdate = true
         }
 
         const cubeMaterials = [
@@ -1912,6 +1913,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           backMaterial, //back side
         ];
         object.material = cubeMaterials
+        object.material.needsUpdate = true
         
         this.updateMaterialForDrawable(util.target.drawableID)
         dr.updateScale(dr.scale)
