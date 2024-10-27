@@ -68,7 +68,7 @@ MODIFIED BY @fath11
   const SIDE_MODE = 'threed.sidemode'
   const TEX_FILTER = 'threed.texfilter'
   const Z_POS = 'threed.zpos'
-  let LIGHTS = {}
+  var LIGHTS = {}
 
   if (!Scratch.extensions.unsandboxed) {
     throw new Error('3D must be run unsandboxed')
@@ -2166,7 +2166,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       let col = this.hexToNumber(color)
       switch (typ) {
         case 'point':
-          l = new THREE.PointLight(col, 1, 0)
+          l = new THREE.PointLight(col, 1  * Math.PI, 0)
           l.position.set(0, 0, 0)
           break
         case 'spotlight':
@@ -2174,7 +2174,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           l.position.set(0, 0, 0)
           break
         case 'hemisphere':
-          l = new THREE.HemisphereLight(col, col, 1)
+          l = new THREE.HemisphereLight(col, col, 1 * Math.PI)
           l.position.set(0, 300, 0)
           break
       }
@@ -2187,7 +2187,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
     }
     setLightIntensity({ name, v }) {
-      LIGHTS[name].intensity = v
+      LIGHTS[name].intensity = v * Math.PI
     }
     setLightDistance({ name, v }) {
       LIGHTS[name].distance = v
