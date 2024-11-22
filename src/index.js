@@ -1013,13 +1013,13 @@ If I ever decide to release this extension on the gallery, this will be replaced
           if (this[OBJECT]) {
             this[OBJECT].removeFromParent()
             this[OBJECT].material.dispose()
-            if (Array.isArray(dr[OBJECT].material)) {
-              dr[OBJECT].material.forEach(material => {
+            if (Array.isArray(this[OBJECT].material)) {
+              this[OBJECT].material.forEach(material => {
                 material.map.dispose()
               });
             } else {
-              dr[OBJECT].material.dispose()
-              if (dr[OBJECT].material.map) dr[OBJECT].material.map.dispose()
+              this[OBJECT].material.dispose()
+              if (this[OBJECT].material.map) this[OBJECT].material.map.dispose()
             }
             this[OBJECT].geometry.dispose()
             this[OBJECT] = null
