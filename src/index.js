@@ -1,5 +1,3 @@
-import * as THREE from 'three'
-
 /*
 MODIFIED BY @deniskincses
 	FIXED FOR PENGUINMOD (nem megy a "Hide/Show Vanilla Blocks")
@@ -55,7 +53,7 @@ MODIFIED BY @fath11
     - glow?
     - world light blocks (direction/disable/flat/color/intensity)
 */
-;(function (Scratch) {
+;(async function (Scratch) {
   'use strict'
 
   if (!Scratch.extensions.unsandboxed) {
@@ -78,6 +76,8 @@ MODIFIED BY @fath11
   if (!Scratch.extensions.unsandboxed) {
     throw new Error('CST 3D must be run unsandboxed')
   }
+
+  const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.webgpu.min.js')
 
   const extId = "cst12293d";
   const vm = Scratch.vm;
@@ -964,7 +964,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       this.camera.near = 0.5
       this.camera.far = 4800
 
-      this.renderer = new THREE.WebGLRenderer()
+      this.renderer = new THREE.WebGPURenderer()
       this.renderer.setClearAlpha(0)
       // create the scratch stuff
       this.threeSkinId = renderer._nextSkinId++;
@@ -1292,7 +1292,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     // pushes the current 3d render state into the drawable
     doUpdateRenderer() {
       this.init()
-      this.renderer.render(this.scene, this.camera)
+      this.renderer.renderAsync(this.scene, this.camera)
 
       if (!this.threeSkinId) return
 
@@ -2340,7 +2340,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       let col = this.hexToNumber(color)
       switch (typ) {
         case 'point':
-          l = new THREE.PointLight(col, 1  * Math.PI, 0)
+          l = new THREE.PointLight(col, 1  * Math.PI, 500)
           l.position.set(0, 0, 0)
           break
         case 'spotlight':
@@ -2361,7 +2361,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
     }
     setLightIntensity({ name, v }) {
-      LIGHTS[name].intensity = v * Math.PI
+      LIGHTS[name].intensity = v * Math.PI * 500
     }
     setLightDistance({ name, v }) {
       LIGHTS[name].distance = v
