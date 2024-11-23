@@ -30190,16 +30190,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
       getSprites() {
         let spriteNames = [];
         const targets = runtime.targets;
-        const myself = runtime.getEditingTarget().sprite.name;
         for (let index = 1; index < targets.length; index++) {
           const curTarget = targets[index].sprite;
-          let display = curTarget.name;
-          if (myself === curTarget.name) {
-            continue;
-          }
           if (targets[index].isOriginal) {
             const jsonOBJ = {
-              text: display,
+              text: curTarget.name,
               value: curTarget.name
             };
             spriteNames.push(jsonOBJ);
@@ -30305,9 +30300,9 @@ If I ever decide to release this extension on the gallery, this will be replaced
         }
         dr[OBJECT] = obj;
         this.updateMeshForDrawable(drawableID, type);
-        if (!("_yaw" in dr)) dr[YAW] = 0;
-        if (!("_pitch" in dr)) dr[PITCH] = 0;
-        if (!("_roll" in dr)) dr[ROLL] = 0;
+        if (!(YAW in dr)) dr[YAW] = 0;
+        if (!(PITCH in dr)) dr[PITCH] = 0;
+        if (!(ROLL in dr)) dr[ROLL] = 0;
         if (!(Z_POS in dr)) dr[Z_POS] = 0;
         this.scene.add(obj);
         this.updateAttachment(dr);
@@ -30671,6 +30666,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
         if (!targetObj) return;
         const dr = renderer._allDrawables[util.target.drawableID];
         const targetDr = renderer._allDrawables[targetObj.drawableID];
+        if (dr === targetDr) return;
         dr[ATTACHED_TO] = targetDr;
         this.updateAttachment(dr);
       }
@@ -30688,6 +30684,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           }
         }
         if (targetDr === void 0) return;
+        if (dr === targetDr) return;
         dr[ATTACHED_TO] = targetDr;
         this.updateAttachment(dr);
       }
@@ -30817,9 +30814,9 @@ If I ever decide to release this extension on the gallery, this will be replaced
         }
       }
       preUpdateCameraAngle() {
-        if (!("_yaw" in this.camera)) this.camera[YAW] = 0;
-        if (!("_pitch" in this.camera)) this.camera[PITCH] = 0;
-        if (!("_roll" in this.camera)) this.camera[ROLL] = 0;
+        if (!(YAW in this.camera)) this.camera[YAW] = 0;
+        if (!(PITCH in this.camera)) this.camera[PITCH] = 0;
+        if (!(ROLL in this.camera)) this.camera[ROLL] = 0;
       }
       updateCameraAngle() {
         this.camera.rotation.x = 0;
