@@ -68,13 +68,23 @@ MODIFIED BY @fath11
   const SIDE_MODE = 'threed.sidemode'
   const TEX_FILTER = 'threed.texfilter'
   const Z_POS = 'threed.zpos'
-  var LIGHTS = {}
+  const YAW = "threed.yaw";
+  const PITCH = "threed.pitch";
+  const ROLL = "threed.roll";
+  const ATTACHED_TO = "threed.attachedto";
+
+  let LIGHTS = {}
 
   if (!Scratch.extensions.unsandboxed) {
-    throw new Error('3D must be run unsandboxed')
+    throw new Error('CST 3D must be run unsandboxed')
   }
 
-  const PATCHES_ID = '__patches_cst12293d'
+  const extId = "cst12293d";
+  const vm = Scratch.vm;
+  const runtime = vm.runtime;
+  const renderer = Scratch.renderer;
+	const PATCHES_ID = "__patches" + extId;
+
   const patch = (obj, functions) => {
     if (obj[PATCHES_ID]) return
     obj[PATCHES_ID] = {}
@@ -94,7 +104,7 @@ MODIFIED BY @fath11
     }
   }
 
-  const unpatch = obj => {
+  const _unpatch = obj => {
     // eslint-disable-line @typescript-eslint/no-unused-vars
     if (!obj[PATCHES_ID]) return
     for (const name in obj[PATCHES_ID]) {
@@ -103,7 +113,7 @@ MODIFIED BY @fath11
     delete obj[PATCHES_ID]
   }
 
-  const Skin = Scratch.renderer.exports.Skin
+  const Skin = renderer.exports.Skin
 
   // this class was originally made by Vadik1
   class SimpleSkin extends Skin {
@@ -118,7 +128,15 @@ MODIFIED BY @fath11
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
       //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,255,0,255]));
       this._texture = texture
+
+      /**
+       * @type {[number, number]}
+       */
       this._rotationCenter = [240, 180]
+
+      /**
+       * @type {[number, number]}
+       */
       this._size = [480, 360]
     }
     dispose() {
@@ -135,8 +153,8 @@ MODIFIED BY @fath11
     get size() {
       return this._size
     }
-    getTexture() {
-      return this._texture || super.getTexture()
+    getTexture(scale) {
+      return this._texture || super.getTexture(scale)
     }
     setContent(textureData) {
       const gl = this._renderer.gl
@@ -153,11 +171,21 @@ MODIFIED BY @fath11
     }
   }
 
-  const extId = 'cst12293d'
-
   class ThreeD {
-    constructor(runtime) {
-      this.runtime = runtime
+    constructor() {
+      window.threed = this;
+      runtime[extId] = this;
+      this.THREE = THREE;
+
+      this.hideVanillaBlocks = !!runtime.extensionStorage?.[extId]?.hideVanillaBlocks;
+      runtime.on("PROJECT_LOADED", () => {
+        this.uninit();
+        const oldHideVanillaBlocks = this.hideVanillaBlocks;
+        this.hideVanillaBlocks = !!runtime.extensionStorage?.[extId]?.hideVanillaBlocks;
+        if (oldHideVanillaBlocks != this.hideVanillaBlocks) {
+          vm.extensionManager.refreshBlocks();
+        }
+      });
     }
     getInfo() {
       return {
@@ -181,7 +209,7 @@ MODIFIED BY @fath11
             text: 'set 3D mode to [MODE]',
             arguments: {
               MODE: {
-                type: Scratch.ArgumentType.MENU,
+                type: Scratch.ArgumentType.STRING,
                 menu: 'MODE_MENU',
                 defaultValue: 'flat'
               }
@@ -342,7 +370,7 @@ MODIFIED BY @fath11
             text: 'direction around [DIRECTION]',
             arguments: {
               DIRECTION: {
-                type: Scratch.ArgumentType.MENU,
+                type: Scratch.ArgumentType.STRING,
                 menu: 'direction',
                 defaultValue: 'y'
               }
@@ -408,6 +436,63 @@ MODIFIED BY @fath11
                 type: Scratch.ArgumentType.COSTUME
               },
             }
+          },
+          {
+            blockType: Scratch.BlockType.LABEL,
+            text: 'Attachments'
+          },
+          {
+            opcode: "attach",
+            blockType: Scratch.BlockType.COMMAND,
+            text: "attach myself to [TARGET]",
+            arguments: {
+              TARGET: {
+                type: Scratch.ArgumentType.STRING,
+                menu: "spriteMenu",
+              },
+            },
+          },
+          {
+            opcode: "attachVar",
+            blockType: Scratch.BlockType.COMMAND,
+            text: "attach myself to sprite with variable [VARIABLE] set to [VALUE]",
+            arguments: {
+              TARGET: {
+                type: Scratch.ArgumentType.STRING,
+                menu: "spriteMenu",
+              },
+              VARIABLE: {
+                type: Scratch.ArgumentType.STRING,
+                default: "my variable"
+              },
+              VALUE: {
+                type: Scratch.ArgumentType.STRING,
+                default: "0"
+              }
+            },
+          },
+          {
+            opcode: "detach",
+            blockType: Scratch.BlockType.COMMAND,
+            text: "detach myself",
+            arguments: {},
+          },
+          {
+            opcode: "attachedSprite",
+            blockType: Scratch.BlockType.REPORTER,
+            text: "sprite I'm attached to",
+            arguments: {},
+          },
+          {
+            opcode: "attachedSpriteVar",
+            blockType: Scratch.BlockType.REPORTER,
+            text: "variable [VARIABLE] of sprite I'm attached to",
+            arguments: {
+              VARIABLE: {
+                type: Scratch.ArgumentType.STRING,
+                default: "my variable"
+              },
+            },
           },
           {
             blockType: Scratch.BlockType.LABEL,
@@ -516,7 +601,7 @@ MODIFIED BY @fath11
             text: 'camera direction around [DIRECTION]',
             arguments: {
               DIRECTION: {
-                type: Scratch.ArgumentType.MENU,
+                type: Scratch.ArgumentType.STRING,
                 menu: 'direction',
                 defaultValue: 'y'
               }
@@ -735,21 +820,6 @@ MODIFIED BY @fath11
             }
           },
           {
-            opcode: 'setLightRst',
-            blockType: Scratch.BlockType.COMMAND,
-            text: 'set light [name] rasterization [raster]',
-            arguments: {
-              name: {
-                type: Scratch.ArgumentType.STRING,
-                defaultValue: 'light'
-              },
-              raster: {
-                type: Scratch.ArgumentType.NUMBER,
-                defaultValue: '25' // 0 to 100? i think
-              }
-            }
-          },
-          {
             opcode: 'deleteLight',
             blockType: Scratch.BlockType.COMMAND,
             text: 'delete light [name]',
@@ -834,7 +904,11 @@ MODIFIED BY @fath11
           },
           texFilter: {
             acceptReporters: true,
-            items: ['nearest', 'linear', '']
+            items: ['nearest', 'linear']
+          },
+          spriteMenu: {
+            acceptReporters: true,
+            items: "getSprites",
           },
           fogAtt: {
             acceptReporters: true,
@@ -862,13 +936,13 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
 
     toggleVanillaBlocks() {
-      this.hideVanillaBlocks = !this.hideVanillaBlocks
-      if (!Scratch.vm.runtime.extensionStorage[extId]) {
-        Scratch.vm.runtime.extensionStorage[extId] = {}
+      this.hideVanillaBlocks = !this.hideVanillaBlocks;
+      vm.extensionManager.refreshBlocks();
+      if (!runtime.extensionStorage) return;
+      if (!runtime.extensionStorage[extId]) {
+        runtime.extensionStorage[extId] = {};
       }
-      Scratch.vm.runtime.extensionStorage[extId].hideVanillaBlocks =
-        this.hideVanillaBlocks
-      Scratch.vm.extensionManager.refreshBlocks()
+      runtime.extensionStorage[extId].hideVanillaBlocks = this.hideVanillaBlocks;
     }
 
     vanillaBlock(xml) {
@@ -893,15 +967,16 @@ If I ever decide to release this extension on the gallery, this will be replaced
       this.renderer = new THREE.WebGLRenderer()
       this.renderer.setClearAlpha(0)
       // create the scratch stuff
-      this.threeSkinId = Scratch.renderer._nextSkinId++
-      Scratch.renderer._allSkins[this.threeSkinId] = new SimpleSkin(
+      this.threeSkinId = renderer._nextSkinId++;
+      this.threeSkin = new SimpleSkin(
         this.threeSkinId,
-        Scratch.renderer
+        renderer
       )
-      this.threeDrawableId = Scratch.renderer.createDrawable('pen')
-      Scratch.renderer._allDrawables[this.threeDrawableId].customDrawableName =
-        'CST 3D Layer'
-      Scratch.renderer.updateDrawableSkinId(
+      renderer._allSkins[this.threeSkinId] = this.threeSkin;
+      this.threeDrawableId = renderer.createDrawable("pen");
+      // @ts-expect-error not typed
+      renderer._allDrawables[this.threeDrawableId].customDrawableName = "CST 3D Layer"
+      renderer.updateDrawableSkinId(
         this.threeDrawableId,
         this.threeSkinId
       )
@@ -909,7 +984,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       this.stageSizeEvent = (() => {
         this.updateScale()
       }).bind(this)
-      Scratch.vm.on('STAGE_SIZE_CHANGED', this.stageSizeEvent)
+      vm.on('STAGE_SIZE_CHANGED', this.stageSizeEvent)
 
       this.stampRenderTarget = new THREE.WebGLRenderTarget()
 
@@ -921,7 +996,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     uninit() {
       // delete everything
-      for (const dr of Scratch.renderer._allDrawables) {
+      for (const dr of renderer._allDrawables) {
         if (!dr) continue
         this.disable3DForDrawable(dr.id)
         delete dr[IN_3D]
@@ -933,26 +1008,27 @@ If I ever decide to release this extension on the gallery, this will be replaced
       if (this.renderer) this.renderer.dispose()
       this.renderer = undefined
       if (this.threeSkinId)
-        Scratch.renderer._allSkins[this.threeSkinId].dispose()
+        this.threeSkin.dispose();
       this.threeSkinId = undefined
       if (this.threeDrawableId)
-        Scratch.renderer._allDrawables[this.threeDrawableId].dispose()
+        renderer._allDrawables[this.threeDrawableId].dispose()
       this.threeDrawableId = undefined
       if (this.stageSizeEvent)
-        Scratch.vm.off('STAGE_SIZE_CHANGED', this.stageSizeEvent)
+        vm.off('STAGE_SIZE_CHANGED', this.stageSizeEvent)
       this.stageSizeEvent = undefined
       if (this.stampRenderTarget) this.stampRenderTarget.dispose()
       this.stampRenderTarget = undefined
 
-      Scratch.vm.runtime.requestRedraw()
+      runtime.requestRedraw()
     }
 
     // call when the native size of the canvas changes
     updateScale() {
-      const w = Scratch.vm.runtime.stageWidth || 480
-      const h = Scratch.vm.runtime.stageHeight || 360
+      const w = runtime.stageWidth || 480;
+      const h = runtime.stageHeight || 360;
 
-      Scratch.renderer._allSkins[this.threeSkinId].size = [w, h]
+      this.threeSkin[0] = w;
+      this.threeSkin[1] = h;
 
       this.camera.aspect = w / h
       this.renderer.setSize(w, h)
@@ -964,9 +1040,9 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     // patches for stuff
     applyPatches() {
-      const Drawable = Scratch.renderer.exports.Drawable
+      const Drawable = renderer.exports.Drawable
 
-      Drawable.threed = this
+      const threed = this
       patch(Drawable.prototype, {
         getVisible(og) {
           if (this[IN_3D]) return false
@@ -977,7 +1053,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             const o = this[OBJECT]
             if (o.visible !== value) {
               o.visible = value
-              Drawable.threed.updateRenderer()
+              threed.updateRenderer()
             }
           }
           return og(value)
@@ -987,15 +1063,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
             const o = this[OBJECT]
             o.position.x = position[0]
             o.position.y = position[1]
-            Drawable.threed.updateRenderer()
+            threed.updateRenderer()
           }
           return og(position)
         },
         updateDirection(og, direction) {
           if (this[IN_3D]) {
-            this._roll = THREE.MathUtils.degToRad(direction)
-            Drawable.threed.updateSpriteAngle(this)
-            Drawable.threed.updateRenderer()
+            this[ROLL] = THREE.MathUtils.degToRad(direction);
+            threed.updateSpriteAngle(this)
+            threed.updateRenderer()
           }
           return og(direction)
         },
@@ -1005,7 +1081,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             obj.scale.x = ((obj._sizeX ?? 100) / 100) * scale[0]
             obj.scale.y = ((obj._sizeY ?? 100) / 100) * scale[1]
             obj.scale.z = ((obj._sizeZ ?? 100) / 100) * scale[0]
-            Drawable.threed.updateRenderer()
+            threed.updateRenderer()
           }
           return og(scale)
         },
@@ -1023,25 +1099,24 @@ If I ever decide to release this extension on the gallery, this will be replaced
             }
             this[OBJECT].geometry.dispose()
             this[OBJECT] = null
-            Drawable.threed.updateRenderer()
+            threed.updateRenderer()
           }
           return og()
         },
         _skinWasAltered(og) {
           og()
           if (this[IN_3D]) {
-            Drawable.threed.updateDrawableSkin(this)
-            Drawable.threed.updateRenderer()
+            threed.updateDrawableSkin(this)
+            threed.updateRenderer()
           }
         }
       })
 
-      Scratch.renderer.threed = this
-      patch(Scratch.renderer, {
+      patch(renderer, {
         draw(og) {
           if (this[THREED_DIRTY]) {
             // Do a 3D redraw
-            Drawable.threed.doUpdateRenderer()
+            threed.doUpdateRenderer()
             this[THREED_DIRTY] = false
           }
           return og()
@@ -1057,7 +1132,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             )
             for (const candidate of candidates) {
               if (
-                Drawable.threed.touching3D(
+                threed.touching3D(
                   dr[OBJECT],
                   this._allDrawables[candidate][OBJECT]
                 )
@@ -1100,7 +1175,6 @@ If I ever decide to release this extension on the gallery, this will be replaced
           )
           if (pick2d !== -1) return pick2d
 
-          const threed = Drawable.threed
           if (!threed.raycaster) return false
 
           const bounds = this.clientSpaceToScratchBounds(
@@ -1152,7 +1226,6 @@ If I ever decide to release this extension on the gallery, this will be replaced
             return og(drawableID, centerX, centerY, touchWidth, touchHeight)
           }
 
-          const threed = Drawable.threed
           if (!threed.raycaster) return false
 
           const bounds = this.clientSpaceToScratchBounds(
@@ -1183,7 +1256,6 @@ If I ever decide to release this extension on the gallery, this will be replaced
           if (!drawable[IN_3D]) return og(drawableID)
 
           // Draw the sprite to the 3D drawable then extract it
-          const threed = Drawable.threed
           threed.renderer.render(drawable[OBJECT], threed.camera)
           this._allSkins[threed.threeSkinId].setContent(
             threed.renderer.domElement
@@ -1193,7 +1265,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           return extracted
         }
       })
-      patch(Scratch.renderer.exports.Skin, {
+      patch(renderer.exports.Skin, {
         dispose(og) {
           if (this._3dCachedTexture) this._3dCachedTexture.dispose()
           og()
@@ -1203,7 +1275,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
             this._3dCachedTexture.dispose()
             this._3dCachedTexture = null
             const returnValue = og(textureData)
-            Drawable.threed.getThreeTextureFromSkin(this)
+            threed.getThreeTextureFromSkin(this)
             return returnValue
           }
           return og(textureData)
@@ -1213,18 +1285,18 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     updateRenderer() {
       // Schedule a 3D redraw
-      Scratch.renderer[THREED_DIRTY] = true
-      Scratch.vm.runtime.requestRedraw()
+      renderer[THREED_DIRTY] = true
+      runtime.requestRedraw()
     }
 
-    // pushes the current 3ds render state into the drawable
+    // pushes the current 3d render state into the drawable
     doUpdateRenderer() {
       this.init()
       this.renderer.render(this.scene, this.camera)
 
       if (!this.threeSkinId) return
 
-      Scratch.renderer._allSkins[this.threeSkinId].setContent(
+      this.threeSkin.setContent(
         this.renderer.domElement
       )
     }
@@ -1265,6 +1337,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       skin._3dCachedTexture = new THREE.CanvasTexture(
         this.getCanvasFromSkin(skin)
       )
+      skin._3dCachedTexture.colorSpace = THREE.SRGBColorSpace;
       return skin._3dCachedTexture
     }
 
@@ -1316,6 +1389,39 @@ If I ever decide to release this extension on the gallery, this will be replaced
       return func.call(shapeA, shapeB)
     }
 
+    /// MENUS
+    
+    // originally from clones plus: https://extensions.turbowarp.org/Lily/ClonesPlus.js
+    getSprites() {
+      let spriteNames = [];
+      const targets = runtime.targets;
+      const myself = runtime.getEditingTarget().sprite.name;
+      for (let index = 1; index < targets.length; index++) {
+        const curTarget = targets[index].sprite;
+        let display = curTarget.name;
+        if (myself === curTarget.name) {
+          continue;
+          /*display = Scratch.translate({
+            default: "myself",
+            description: "Item in a dropdown that refers to the current sprite",
+          });*/
+        }
+        if (targets[index].isOriginal) {
+          const jsonOBJ = {
+            text: display,
+            value: curTarget.name,
+          };
+          spriteNames.push(jsonOBJ);
+        }
+      }
+      if (spriteNames.length > 0) {
+        return spriteNames;
+      } else {
+        return [{ text: "", value: 0 }]; //this should never happen but it's a failsafe
+      }
+    }
+    ///
+
     /// DRAWABLE STUFF ///
 
     // thanks stackoverflow
@@ -1358,17 +1464,17 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
 
       switch (skin.constructor) {
-        case Scratch.renderer.exports.BitmapSkin: {
+        case renderer.exports.BitmapSkin: {
           if (skin._textureSize[0] < 1 || skin._textureSize[1] < 1)
             return emptyCanvas()
           return this.getCanvasFromTexture(
-            Scratch.renderer.gl,
+            renderer.gl,
             skin.getTexture(),
             skin._textureSize[0],
             skin._textureSize[1]
           )
         }
-        case Scratch.renderer.exports.SVGSkin: {
+        case renderer.exports.SVGSkin: {
           // code copy-pasted from scratch-render
           const INDEX_OFFSET = 8
 
@@ -1389,7 +1495,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
           if (sizeX < 1 || sizeY < 1) return emptyCanvas()
 
           return this.getCanvasFromTexture(
-            Scratch.renderer.gl,
+            renderer.gl,
             skin.getTexture([textureScale, textureScale]),
             sizeX,
             sizeY
@@ -1403,10 +1509,10 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     getSizeFromSkin(skin) {
       switch (skin.constructor) {
-        case Scratch.renderer.exports.BitmapSkin: {
+        case renderer.exports.BitmapSkin: {
           return [skin._textureSize[0], skin._textureSize[1]]
         }
-        case Scratch.renderer.exports.SVGSkin: {
+        case renderer.exports.SVGSkin: {
           return skin._size
         }
         default:
@@ -1416,7 +1522,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
 
     enable3DForDrawable(drawableID, type = 'flat') {
-      const dr = Scratch.renderer._allDrawables[drawableID]
+      const dr = renderer._allDrawables[drawableID]
       if (dr[IN_3D]) return
 
       dr[IN_3D] = true
@@ -1430,17 +1536,18 @@ If I ever decide to release this extension on the gallery, this will be replaced
       dr[OBJECT] = obj
       this.updateMeshForDrawable(drawableID, type)
 
-      if (!('_yaw' in dr)) dr._yaw = 0
-      if (!('_pitch' in dr)) dr._pitch = 0
-      if (!('_roll' in dr)) dr._roll = 0
+      if (!("_yaw" in dr)) dr[YAW] = 0;
+      if (!("_pitch" in dr)) dr[PITCH] = 0;
+      if (!("_roll" in dr)) dr[ROLL] = 0;
       if (!(Z_POS in dr)) dr[Z_POS] = 0
 
       this.scene.add(obj)
+      this.updateAttachment(dr);
       this.updateRenderer()
     }
 
     updateMeshForDrawable(drawableID, type) {
-      const dr = Scratch.renderer._allDrawables[drawableID]
+      const dr = renderer._allDrawables[drawableID]
       if (!dr[IN_3D]) return
       const obj = dr[OBJECT]
 
@@ -1523,13 +1630,16 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       if (obj?.material?.map) obj?.material?.map?.dispose()
       const texture = this.getThreeTextureFromSkin(dr.skin)
+    // for multi-textured cube, we need to loop through each material that makes up the faces and modify them individually
       if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
         dr[OBJECT].material.forEach(material => {
           material.map = texture
+          texture.colorSpace = THREE.SRGBColorSpace;
           material.alphaTest = 0.01
         });
       } else {
         obj.material.map = texture
+        texture.colorSpace = THREE.SRGBColorSpace;
         obj.material.alphaTest = 0.01
       }
 
@@ -1539,7 +1649,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
 
     updateMaterialForDrawable(drawableID) {
-      const dr = Scratch.renderer._allDrawables[drawableID]
+      const dr = renderer._allDrawables[drawableID]
       if (!dr[IN_3D]) return
       const obj = dr[OBJECT]
 
@@ -1547,6 +1657,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       if (!(TEX_FILTER in dr)) dr[TEX_FILTER] = THREE.LinearMipmapLinearFilter
 
       let texture = null
+      // for multi-textured cube, we need to loop through each material that makes up the faces and modify them individually
       if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
         dr[OBJECT].material.forEach(material => {
           material.side = dr[SIDE_MODE]
@@ -1573,7 +1684,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
 
     disable3DForDrawable(drawableID) {
-      const dr = Scratch.renderer._allDrawables[drawableID]
+      const dr = renderer._allDrawables[drawableID]
       if (!dr[IN_3D]) return
 
       dr[IN_3D] = false
@@ -1636,7 +1747,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     setZ({ Z }, util) {
       if (util.target.isStage) return
 
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
       if (!dr[IN_3D]) return
 
       dr[OBJECT].position.z = Scratch.Cast.toNumber(Z)
@@ -1646,7 +1757,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     changeZ({ Z }, util) {
       if (util.target.isStage) return
 
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
       if (!dr[IN_3D]) return
 
       const z = Scratch.Cast.toNumber(Z)
@@ -1657,7 +1768,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
     getZ(args, util) {
       if (util.target.isStage) return 0
 
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
       if (!dr[OBJECT]) return 0
       return dr[OBJECT].position.z
     }
@@ -1679,7 +1790,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       let dr
       if (util?.target) {
         if (util.target.isStage) return
-        dr = Scratch.renderer._allDrawables[util.target.drawableID]
+        dr = renderer._allDrawables[util.target.drawableID]
       } else {
         dr = util
       }
@@ -1693,15 +1804,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       const WRAP_MIN = THREE.MathUtils.degToRad(-180)
       const WRAP_MAX = THREE.MathUtils.degToRad(180)
-      dr._yaw = this.wrapClamp(dr._yaw, WRAP_MIN, WRAP_MAX)
-      dr._pitch = this.wrapClamp(dr._pitch, WRAP_MIN, WRAP_MAX)
-      dr._roll = this.wrapClamp(dr._roll, WRAP_MIN, WRAP_MAX)
+      dr[YAW] = this.wrapClamp(dr[YAW], WRAP_MIN, WRAP_MAX);
+      dr[PITCH] = this.wrapClamp(dr[PITCH], WRAP_MIN, WRAP_MAX);
+      dr[ROLL] = this.wrapClamp(dr[ROLL], WRAP_MIN, WRAP_MAX);
 
-      obj.rotation.y = dr._yaw
-      obj.rotateOnAxis(new THREE.Vector3(1, 0, 0), dr._pitch)
+      obj.rotation.y = dr[YAW]
+      obj.rotateOnAxis(new THREE.Vector3(1, 0, 0), dr[PITCH])
       obj.rotateOnAxis(
         new THREE.Vector3(0, 0, 1),
-        THREE.MathUtils.degToRad(90) - dr._roll
+        THREE.MathUtils.degToRad(90) - dr[ROLL]
       )
     }
 
@@ -1725,7 +1836,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     moveSteps({ STEPS }, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
       if (!dr[IN_3D]) return
 
       const add = new THREE.Vector3(0, 0, 1)
@@ -1740,7 +1851,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     rotate3D({ DIRECTION, DEGREES }, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
 
       if (!dr[IN_3D]) return
 
@@ -1755,11 +1866,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
       switch (DIRECTION) {
         case 'left':
         case 'right':
-          dr._yaw -= THREE.MathUtils.degToRad(DEGREES)
+          dr[YAW] -= THREE.MathUtils.degToRad(DEGREES)
           break
         case 'up':
         case 'down':
-          dr._pitch += THREE.MathUtils.degToRad(DEGREES)
+          dr[PITCH] += THREE.MathUtils.degToRad(DEGREES)
           break
         case 'cw':
         case 'ccw':
@@ -1772,7 +1883,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     set3DDir({ DIRECTION, DEGREES }, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
 
       if (!dr[IN_3D]) return
 
@@ -1783,11 +1894,11 @@ If I ever decide to release this extension on the gallery, this will be replaced
       switch (DIRECTION) {
         case 'y':
         case 'angle': // Old versions of the extension used angle/aim/roll instead of rotation around Y/X/Z
-          dr._yaw = -THREE.MathUtils.degToRad(DEGREES)
+          dr[YAW] = -THREE.MathUtils.degToRad(DEGREES)
           break
         case 'x':
         case 'aim':
-          dr._pitch = THREE.MathUtils.degToRad(DEGREES)
+          dr[PITCH] = THREE.MathUtils.degToRad(DEGREES)
           break
         case 'z':
         case 'roll':
@@ -1800,19 +1911,19 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     direction3D({ DIRECTION }, util) {
       if (util.target.isStage) return 0
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
       if (!dr[IN_3D]) return 0
 
       switch (DIRECTION) {
         case 'y':
         case 'angle':
-          return -THREE.MathUtils.radToDeg(dr._yaw)
+          return -THREE.MathUtils.radToDeg(dr[YAW])
         case 'x':
         case 'aim':
-          return THREE.MathUtils.radToDeg(dr._pitch)
+          return THREE.MathUtils.radToDeg(dr[PITCH])
         case 'z':
         case 'roll':
-          return THREE.MathUtils.radToDeg(dr._roll) - 90
+          return THREE.MathUtils.radToDeg(dr[ROLL]) - 90
         default:
           return 0
       }
@@ -1820,7 +1931,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     setSideMode({ SIDE }, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
 
       this.init()
 
@@ -1832,6 +1943,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
       if (!(SIDE in sides)) return
       dr[SIDE_MODE] = sides[SIDE]
 
+      // for multi-textured cube, we need to loop through each material that makes up the faces and modify them individually
       if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
         dr[OBJECT].material.forEach(material => {
           material.side = sides[SIDE]
@@ -1847,9 +1959,76 @@ If I ever decide to release this extension on the gallery, this will be replaced
       }
     }
 
+    updateAttachment(dr) {
+      if (!this.scene) return;
+      if (dr[IN_3D]) {
+        const newParent = dr[ATTACHED_TO]?.[OBJECT] || this.scene;
+        if (dr[OBJECT].parent !== newParent) {
+          dr[OBJECT].removeFromParent();
+          newParent.add(dr[OBJECT]);
+          this.updateRenderer();
+        }
+      }
+    }
+    
+    attach({TARGET}, util) {
+      if (util.target.isStage) return;
+      const targetObj = runtime.getSpriteTargetByName(Scratch.Cast.toString(TARGET));
+      if (!targetObj) return;
+      const dr = renderer._allDrawables[util.target.drawableID];
+      const targetDr = renderer._allDrawables[targetObj.drawableID];
+      dr[ATTACHED_TO] = targetDr;
+      this.updateAttachment(dr);
+    }
+    
+    attachVar({VARIABLE, VALUE}, util) {
+      if (util.target.isStage) return;
+      VARIABLE = Scratch.Cast.toString(VARIABLE);
+      VALUE = Scratch.Cast.toString(VALUE);
+      const dr = renderer._allDrawables[util.target.drawableID];
+      let targetDr = undefined;
+      for (const target of runtime.targets) {
+        const variable = target.lookupVariableByNameAndType(VARIABLE, "", true);
+        if (variable && Scratch.Cast.toString(variable?.value) === VALUE) {
+          targetDr = target.isStage ? null : renderer._allDrawables[target.drawableID];
+          break;
+        }
+      }
+      if (targetDr === undefined) return;
+      dr[ATTACHED_TO] = targetDr;
+      this.updateAttachment(dr);
+    }
+    
+    detach(args, util) {
+      if (util.target.isStage) return;
+      const dr = renderer._allDrawables[util.target.drawableID];
+      dr[ATTACHED_TO] = null;
+      this.updateAttachment(dr);
+    }
+    getAttachedSprite(dr) {
+      if (!dr[IN_3D] || !dr[ATTACHED_TO]) return null;
+      const attachedId = dr[ATTACHED_TO].id;
+      const attachedSprite = runtime.targets.find(target => target.drawableID === attachedId);
+      if (!attachedSprite) return null;
+      return attachedSprite
+    }
+    attachedSprite(args, util) {
+      if (util.target.isStage) return "";
+      const attachedSprite = this.getAttachedSprite(renderer._allDrawables[util.target.drawableID]);
+      if (!attachedSprite) return "";
+      return attachedSprite.sprite.name;
+    }
+    attachedSpriteVar({VARIABLE}, util) {
+      if (util.target.isStage) return "";
+      const attachedSprite = this.getAttachedSprite(renderer._allDrawables[util.target.drawableID]);
+      if (!attachedSprite) return "";
+      VARIABLE = Scratch.Cast.toString(VARIABLE);
+      return attachedSprite.lookupVariableByNameAndType(VARIABLE, "", true)?.value ?? "";
+    }
+
     setCubeTexture({ RIGHT, LEFT, TOP, BOTTOM, FRONT, BACK}, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
 
       this.init()
 
@@ -1894,8 +2073,8 @@ If I ever decide to release this extension on the gallery, this will be replaced
       const object = dr[OBJECT];
 
       if (object && object.geometry instanceof THREE.BoxGeometry) {
-        if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
-          dr[OBJECT].material.forEach(material => {
+        if (object && Array.isArray(object.material)) {
+          object.material.forEach(material => {
             material.map.dispose()
             material.needsUpdate = true
           });
@@ -1923,7 +2102,7 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
     setTexFilter({ FILTER }, util) {
       if (util.target.isStage) return
-      const dr = Scratch.renderer._allDrawables[util.target.drawableID]
+      const dr = renderer._allDrawables[util.target.drawableID]
 
       this.init()
 
@@ -1934,10 +2113,12 @@ If I ever decide to release this extension on the gallery, this will be replaced
       if (!(FILTER in filters)) return
       dr[TEX_FILTER] = filters[FILTER]
 
+      // for multi-textured cube, we need to loop through each material that makes up the faces and modify them individually
       if (dr[OBJECT] && Array.isArray(dr[OBJECT].material)) {
         dr[OBJECT].material.forEach(material => {
           const cloned = material.map.clone()
           material.map.dispose()
+          cloned.colorSpace = THREE.SRGBColorSpace;
           material.map = cloned
           cloned.needsUpdate = true
         });
@@ -1962,9 +2143,9 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
 
     preUpdateCameraAngle() {
-      if (!('_yaw' in this.camera)) this.camera._yaw = 0
-      if (!('_pitch' in this.camera)) this.camera._pitch = 0
-      if (!('_roll' in this.camera)) this.camera._roll = 0
+      if (!("_yaw" in this.camera)) this.camera[YAW] = 0;
+      if (!("_pitch" in this.camera)) this.camera[PITCH] = 0;
+      if (!("_roll" in this.camera)) this.camera[ROLL] = 0;
     }
 
     updateCameraAngle() {
@@ -1974,17 +2155,13 @@ If I ever decide to release this extension on the gallery, this will be replaced
 
       const WRAP_MIN = THREE.MathUtils.degToRad(-180)
       const WRAP_MAX = THREE.MathUtils.degToRad(180)
-      this.camera._yaw = this.wrapClamp(this.camera._yaw, WRAP_MIN, WRAP_MAX)
-      this.camera._pitch = this.wrapClamp(
-        this.camera._pitch,
-        WRAP_MIN,
-        WRAP_MAX
-      )
-      this.camera._roll = this.wrapClamp(this.camera._roll, WRAP_MIN, WRAP_MAX)
+      this.camera[YAW] = this.wrapClamp(this.camera[YAW], WRAP_MIN, WRAP_MAX);
+      this.camera[PITCH] = this.wrapClamp(this.camera[PITCH], WRAP_MIN, WRAP_MAX);
+      this.camera[ROLL] = this.wrapClamp(this.camera[ROLL], WRAP_MIN, WRAP_MAX);
 
-      this.camera.rotation.y = this.camera._yaw
-      this.camera.rotateOnAxis(new THREE.Vector3(1, 0, 0), this.camera._pitch)
-      this.camera.rotateOnAxis(new THREE.Vector3(0, 0, 1), this.camera._roll)
+      this.camera.rotation.y = this.camera[YAW]
+      this.camera.rotateOnAxis(new THREE.Vector3(1, 0, 0), this.camera[PITCH])
+      this.camera.rotateOnAxis(new THREE.Vector3(0, 0, 1), this.camera[ROLL])
     }
 
     setCam({ X, Y, Z }) {
@@ -2043,15 +2220,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
       switch (DIRECTION) {
         case 'left':
         case 'right':
-          this.camera._yaw -= THREE.MathUtils.degToRad(DEGREES)
+          this.camera[YAW] -= THREE.MathUtils.degToRad(DEGREES)
           break
         case 'up':
         case 'down':
-          this.camera._pitch += THREE.MathUtils.degToRad(DEGREES)
+          this.camera[PITCH] += THREE.MathUtils.degToRad(DEGREES)
           break
         case 'cw':
         case 'ccw':
-          this.camera._roll += THREE.MathUtils.degToRad(DEGREES)
+          this.camera[ROLL] += THREE.MathUtils.degToRad(DEGREES)
           break
       }
       this.updateCameraAngle()
@@ -2066,15 +2243,15 @@ If I ever decide to release this extension on the gallery, this will be replaced
       switch (DIRECTION) {
         case 'y':
         case 'angle':
-          this.camera._yaw = -THREE.MathUtils.degToRad(DEGREES)
+          this.camera[YAW] = -THREE.MathUtils.degToRad(DEGREES)
           break
         case 'x':
         case 'aim':
-          this.camera._pitch = THREE.MathUtils.degToRad(DEGREES)
+          this.camera[PITCH] = THREE.MathUtils.degToRad(DEGREES)
           break
         case 'z':
         case 'roll':
-          this.camera._roll = THREE.MathUtils.degToRad(DEGREES)
+          this.camera[ROLL] = THREE.MathUtils.degToRad(DEGREES)
           break
       }
       this.updateCameraAngle()
@@ -2088,13 +2265,13 @@ If I ever decide to release this extension on the gallery, this will be replaced
       switch (DIRECTION) {
         case 'y':
         case 'angle':
-          return -THREE.MathUtils.radToDeg(this.camera._yaw)
+          return -THREE.MathUtils.radToDeg(this.camera[YAW])
         case 'x':
         case 'aim':
-          return THREE.MathUtils.radToDeg(this.camera._pitch)
+          return THREE.MathUtils.radToDeg(this.camera[PITCH])
         case 'z':
         case 'roll':
-          return THREE.MathUtils.radToDeg(this.camera._roll)
+          return THREE.MathUtils.radToDeg(this.camera[ROLL])
         default:
           return 0
       }
@@ -2293,10 +2470,6 @@ If I ever decide to release this extension on the gallery, this will be replaced
         light.target.updateMatrixWorld()
       }
     }
-    // remove eslint disable later
-    setLightRst({ name, raster }) {
-      // eslint-disable-line @typescript-eslint/no-unused-vars
-    }
     deleteLight({ name }) {
       this.scene.remove(LIGHTS[name])
       delete LIGHTS[name]
@@ -2328,5 +2501,5 @@ If I ever decide to release this extension on the gallery, this will be replaced
     }
   }
 
-  Scratch.extensions.register(new ThreeD(Scratch.runtime))
+  Scratch.extensions.register(new ThreeD())
 })(Scratch) // eslint-disable-line no-undef
