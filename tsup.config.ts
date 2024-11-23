@@ -11,7 +11,8 @@ export default defineConfig({
     js: `// Name: CST 3D
 // ID: cst12293d
 // Description: Bring your sprites into the third dimension.
-// By: CST1229 <https://scratch.mit.edu/users/CST1229/>
+// Original: CST1229 <https://scratch.mit.edu/users/CST1229/>
+// By: Fath11 <https://github.com/fath11>
 // License: MPL-2.0
 `
   },
